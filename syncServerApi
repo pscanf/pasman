@@ -1,0 +1,244 @@
+The sync server allows the user to keep the secrets archive
+in sync between his devices and to share secrets with other
+users and keep them in sync.
+
+The sync server is not to be trusted. It implements some
+measures to counter DDOS or other types of attacks, but that
+doesn't make it secure.
+
+Secrets are standalone, and can be shared between users or
+devices.  Is there a difference between a user and a device?
+One could only want to share some secrets with a device,
+just as he would with a user.  So no, let's say there is no
+difference.
+
+So one secret can be shared between n sharers, be they
+devices or users.
+
+Each sharer has an RSA keypair.
+
+Each secret has an encryption key.
+
+Each secret is associated with a set of sharers, via their
+public keys.
+
+
+secret = {
+	id: "128Base64EncodedRandomBytes",
+	data: "Base64EncodedCiphertext"
+}
+
+sharer = {
+	publicKey: "Base64EncodedPublicKey",
+	privateKey: "Base64EncodedPrivateKey",
+	secrets: [
+		{
+			id: "128Base64EncodedRandomBytes",
+			key: "Base64EncodedEncryptionKey",
+			sharers: [
+				"Base64EncodedSharerPublicKey",
+				...
+			]
+		},
+		...
+	]
+}
+
+Sharers communicate using a common chatroom.
+
+
+Server - dh params
+	- user dh-pk
+	- user dh-pk
+	- user dh-pk
+
+
+user1	|	user2
+------------------
+pub		|	pub
+prv		|	prv
+
+
+		Message exchange
+
+1	-	user1 knows user2's public key
+
+2	-	user1 encrypts the message with user2's public key
+
+3	-	user1 sends the encrypted message to the server
+
+4	-	the server stores the message if it deems
+		appropriate (e.g. if user2 is registered)
+
+5	-	user2 asks the server for messages sent to his
+		public key
+
+6	-	the server asks user2 to decrypt a random message he
+		encrypts with his public key
+
+7	-	user2 sends the server the decrypted message,
+		proving his identity (hashed for not revealing
+		anything to the server)
+
+8	-	user2 downloads his messages from the server
+
+9	-	user2 decrypts his messages using his private key
+
+10	-	user2 now has user1's message
+
+
+Client side secret = {
+	id: "Base64EncodedRandomBytes",
+	versions: [
+		{
+			id: "Base64EncodedRandomBytes",
+			previous: "Base64EncodedRandomBytes" || "0000",
+			sharers: [
+				"Base64EncodedPublicKey",
+				...
+			]
+			data: "Base64EncodedEncryptedData"
+		},
+		...
+	]
+};
+
+
+Messages between clients
+
+invite:	invites the other client to join your secret
+update:	tells the other client you updated your (or their)
+		secret
+remove:	tells the other client he can no longer download the
+		secret
+
+Messages can be replayed by a client, so one can fully
+reconstruct the archive and its versions if one has the
+correct private key. This is also how backups are performed,
+sending each update to oneself.
+
+At this point we have no need for a server which stores
+data. We only need a messaging server. Secret message are
+within those transactions, 
+
+
+
+--------------------------------------------------------------------------------
+
+CLIENT/SERVER PROTOCOL
+
+--------------------------------------------------------------------------------
+
+	SENDING A MESSAGE
+
+		NOTE: the client already knows whom to send his message to, that is, the
+		public key of the receiver.  In fact, the server IS NOT a certificate
+		authority, nor a key server.  How the client gets the public key of the
+		receiver is not discussed here.
+
+
+		1.	The client composes his message (as a JSON encoded object or else)
+			with the following information:
+		
+			from:		the sender's public key (base64 encoded string)
+
+			to:			the receiver's public key (base64 encoded string)
+
+			key:		the symmetric encryption key used to encrypt the message
+						body, asymmetrically encrypted with the receiver's
+						public key (base64 encoded string)
+
+			body:		the message body, encrypted with the symmetric key
+						specified above (base64 encoded string)
+
+			date:		the current date in unix format (number)
+
+			last:		the previous message id
+
+			signature:	the message signature signed with the sender's public
+						key (base64 encoded string)
+
+			The client sends the message to the server as the body of a HTTP
+			POST request. The content-type of the body can be either json,
+			url-encoded string, or else.
+
+
+		2.	Having received the message, the server verifies its validity. This
+			is done by:
+
+			*	checking the date. If the message's date doesn't fall in a
+				specified neighbourhood (typically 10 seconds) of the server's
+				date, it is considered invalid.
+			*	checking the signature. If the signature is invalid, the message
+				is considered invalid.
+
+			If the message is invalid, the server answers the client with:
+			
+			*	460 INVALID DATE if the date is invalid
+			*	461 INVALID SIGNATURE if the signature is invalid
+
+			If the message is valid, the server:
+			
+			*	saves it to the database with the following details:
+					id:			hash of the entire message (base64 string)
+					date:		unix date (number)
+					message:	the entire message sent by the client
+			*	answers 200 OK to the client.
+
+--------------------------------------------------------------------------------
+
+	DOWNLOADING MESSAGES
+
+		NOTE: before being able to receive messages, a client must register to
+		the server. A detailed explanation of the registering protocol is given
+		elsewhere. Here we assume the client is already registered.
+
+		First of all the client needs to authenticate itself to the server.
+		
+		1.	The client requests a session secret.
+		2.	The server generates a random string, encrypts it with the client's
+			public key, and sends it to the client.
+		3.	The client decrypts the random string, hashes it, and sends it to
+			the server with each request.
+		4.	When the server receives a request, it calculates the hash of the
+			random string and compares it to the hash sent by the client. If
+			they match, the client is authenticated.
+
+		An alternative is to use HTTPS client's authentication, which actually
+		is probably better, but I need to figure out how to do it. With HTTPS
+		client's authentication we can also authenticate the sender. However,
+		since we do not trust the server, the message must still be signed by
+		the client.
+
+		The authenticated client can then download his messages.
+
+		Messages on the server are stored by sender and by date.
+
+
+GET
+
+	/sndpubkeyhashb64encoded44chars/archives/list
+
+	[
+		{
+			length: 100,
+			from:	unix_date,
+			to:		unix_date,
+			first:	firstMessageId,
+			last:	lastMessageId,
+			hash:	hashOfCatedMessageIds
+		},
+		...
+		{
+			length: 15,
+			from:	unix_date,
+			to:		unix_date,
+			first:	firstMessageId,
+			last:	lastMessageId,
+			hash:	hashOfCatedMessageIds
+		},
+	]
+	
+	/sndpubkeyhashb64encoded44chars/archives/hash
+
+	"hashOfTheAboveJSONString"

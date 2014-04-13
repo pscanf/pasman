@@ -1,0 +1,158 @@
+#Pasman
+
+Pasman is a program that allows you to manage your
+passwords, your ssh keys and more.
+
+##How do you use it
+
+Your secrets archive can be unlocked either using a file or
+a passphrase. Out of the box pasman allows you to easily set
+up a dedicated usb key that contains everything you need to
+use it.
+
+To allow you to manage multiple types of secrets, it
+provides a rest API to store and retrieve those secrets.
+This API can then be consumed by a command line application
+that instantiates an ssh connection, by a desktop
+application that allows you to edit your archive, by a
+browser extension that auto-fills web forms for you, etc.
+
+By default pasman ships with:
+
+* a Chromium extension to manage web forms
+* a desktop application to manage your archive (and more)
+* a command line utility to instantiate ssh connections
+
+##Server architecture
+
+The server is the component that provides the restful API to
+access and manipulate the database.
+
+
+##Sharing
+
+Roaming with a USB stick from computer to computer is a very
+bad idea. The computer you plug your USB stick into could be
+infected with malware, a keylogger etc. So it makes no sense
+to make it possible to install pasman on the fly and having
+access to your secrets on any computer. You should only
+access your secrets on trusted computers.
+
+Instead it makes sense to build pasman so that a secrets
+archive can be accessed from different devices and
+computers. We can go the USB route or the server route.
+Since the kind of secrets pasman intends to store are mostly
+useful if there is network connectivity, I'm going to assume
+that all devices who want access to a pasman secrets archive
+have network connectivity.
+A USB key can be used either for authentication and archive,
+but not both, since the authentication feature would fall.
+So the server route is the best.
+
+Also, pasman needs to make it possible to share secrets
+between users.
+
+##Double server architecture
+
+There is a sync server, and an access server.
+
+The sync server resides on the cloud (private or public). It
+doesn't have access to any cleartext secret. It's more or
+less just a file sharing server.
+
+The access server resides on a user's device.
+
+##API
+
+###Archive methods
+
+---
+
+* addArchive(cryptoKey)
+
+* delArchive(id)
+
+* lsArchives()
+
+---
+
+* putArchiveInfo(id, info)
+
+* getArchiveInfo(id)
+
+---
+
+* putArchiveContent(id, content)
+
+* getArchiveContent(id)
+
+---
+
+* openArchive(id, cryptoKey)
+
+* closeArchive(id)
+
+* isArchiveOpen(id)
+
+* storeArchive(id)
+
+
+###Buckets methods
+
+* addBucket(name)
+* delBucket(name)
+* lsBuckets()
+* putBucketInfo(name, info)
+* getBucketInfo(name)
+
+
+###Keys methods
+
+---
+
+* addKey(bucket)
+* delKey(bucket, id)
+* lsKeys(bucket)
+
+* SS addKeyWithInfo(bucket, info)
+* SS addKeyWithInfoAndContent(bucket, info, content)
+* SS getKeyInfoAndMostRecentContent(bucket, id)
+* SS lsKeysInfo(bucket)
+
+---
+
+* putKeyInfo(bucket, id, info)
+
+* getKeyInfo(bucket, id)
+
+---
+
+* addVersion(bucket, id)
+
+* delVersion(bucket, id, versionId)
+
+* lsVersions(bucket, id)
+
+* SS addVersionWithInfo(bucket, id, info)
+
+* SS addVersionWithInfoAndContent(bucket, id, info, content)
+
+* SS getMostRecentVersionInfoAndContent(bucket, id)
+
+* SS lsVersionsInfo(bucket, id)
+
+---
+
+* getVersionInfo(bucket, id, versionId)
+
+* putVersionInfo(bucket, id, versionId, info)
+
+* SS getMostRecentVersionInfo(bucket, id)
+
+---
+
+* putVersionContent(bucket, id, versionId, content)
+
+* getVersionContent(bucket, id, versionId)
+
+* SS getMostRecentVersionContent(bucket, id)

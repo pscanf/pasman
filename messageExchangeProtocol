@@ -1,0 +1,124 @@
+Alice	(->)	Bob
+
+We need to ensure that the message Alice wants to send to
+Bob actually gets delivered. This is done through delivery
+proof.
+
+You are not bound to something like an email address, so if
+a server doesn't fit you, you can change server without
+trouble.
+
+Multiple key servers (analogous to DNS servers).
+
+	key record
+
+		{
+			key: "base64EncodedString",
+			addresses: [
+				{
+					ip: "base64EncodedString",
+					key: "base64EncodedString"
+				},
+				{
+					ip: "base64EncodedString",
+					key: "base64EncodedString"
+				},
+				...
+			],
+			creationDate: "dateString",
+			expiry: "dateString",
+			clientSignature: "base64EncodedString",
+			serverSignature: "base64EncodedString"
+		}
+
+Alice	->		DKS		->		Server		->		Bob
+
+
+PROTOCOL
+
+	Alice picks the server
+
+		1.	Alice randomly picks a key server. (How?)
+		2.	Alice asks the key server for the key record.
+		3.	Alice repeats n times steps 1 and 2.
+		4.	Alice compares all key records she got, and chooses the most recent
+			one.
+
+	Alice sends the message
+
+		1.	Alice randomly picks an address from the key record.
+		2.	Alice sends her message to that address.
+		3.	The server replies with a "proof of shipping".
+		4.	Alice now awaits for the "proof of delivery".
+		5.	After t time, if she hasn't received the proof of delivery yet, she
+			can choose to re-send the message through a different server. In the
+			new message she includes the proof of shipping of the first try and
+			the key server from which he got the key record, so that Bob can fix
+			whatever is not working.
+
+	The server gets the message
+
+		1.	The server gets the message from Alice.
+		2.	The server verifies the time and the signature of the message.
+		3.	The server verifies whom the message is sent to (no point in
+			accepting a message for an unregistered client).
+		4.	The server generates the shipping proof and sends it to Alice.
+
+	[OPTIONAL
+		The server notifies Bob that a new message has arrived.
+		Bob gets notified,
+	]
+
+	Bob checks for new messages
+
+		1.	Bob asks the server for new messages.
+		2.	If there are new messages, the server sends them to Bob, each with a
+			signature.
+		3.	Bob replies with a "proof of delivery".
+		4.	The server makes this proof available so that Alice can now verify
+			that the message was actually delivered.
+
+
+
+
+SHIPPING MESSAGE	|	Alice -> Server
+
+~20 KB of "overhead"
+
+{
+	from:		"Alice's key",
+	to:			"Bob's key",
+	via:		"Server's key",
+	asFor:		keyRecord,
+	date:		"current date",
+	body:		"whatever she sends",
+	signature:	"Alice's signature"
+}
+
+The message hash serves as ID.
+
+PROOF OF SHIPPING	|	Server -> Alice
+
+{
+	hash:		"hash of the message",
+	date:		"current date",
+	signature:	"Server's signature"
+}
+
+[NEEDED?
+	DELIVERY MESSAGE	|	Server -> Bob
+
+	{
+		message:	message,
+		date:		"current date",
+		signature:	"Server's signature"
+	}
+]
+
+PROOF OF DELIVERY	|	Bob -> Server
+
+{
+	hash:		"hash of the message",
+	date:		"current date",
+	signature:	"Bob's signature"
+}

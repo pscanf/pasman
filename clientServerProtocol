@@ -1,0 +1,91 @@
+--------------------------------------------------------------------------------
+
+CLIENT/SERVER PROTOCOL
+
+--------------------------------------------------------------------------------
+
+	SENDING A MESSAGE
+
+		NOTE: the client already knows whom to send his message to, that is, the
+		public key of the receiver.  In fact, the server IS NOT a certificate
+		authority, nor a key server.  How the client gets the public key of the
+		receiver is not discussed here.
+
+
+		1.	The client composes his message (as a JSON encoded object or else)
+			as follows.
+		
+			to:			the receiver's public key (base64 encoded string)
+
+			key:		the symmetric encryption key used to encrypt the message
+						body, asymmetrically encrypted with the receiver's
+						public key (base64 encoded string)
+
+			body:		the message body, encrypted with the symmetric key
+						specified above (base64 encoded string)
+
+			The client sends the message to the server as the body of a HTTP
+			POST request. The content-type of the body can be either json,
+			url-encoded string, or else.
+
+To compose a message, the sender needs the following information:
+
+* sender's key pair
+* receiver's public key
+* shared symmetric encryption key
+* message body
+* current date
+
+Once the sender has gathered this information, it proceeds as follows.
+1.	Constructs the following JSON object:
+	{
+		"signing_key": "sender's own public key",
+		"body": "message body"
+	}
+
+2.	Encrypts the string with the shared symmetric encryption key, obtaining the
+	ciphertext.
+3.	Signs the ciphertext with his private key.
+4.	Encrypts the signature with the shared symmetric encryption key.
+5.	Encrypts the symmetric encryption key with the receiver's public key.
+6.	Constructs the following JSON object:
+	{
+		"to": "receiver's public key",
+		"ciphertext": "the ciphertext obtained in step 2",
+		"ciphersign": "the encrypted signature obtained in step 4"
+	}
+
+By doing this, the sender ensures that the receiver can decrypt and verify his
+message. However the server cannot, and it can't even tell from whom the message
+comes from.
+
+
+		2.	Having received the message, the server verifies its validity. This
+			is done by:
+
+			*	checking the date. If the message's date doesn't fall in a
+				specified neighbourhood (typically 10 seconds) of the server's
+				date, it is considered invalid.
+			*	checking the signature. If the signature is invalid, the message
+				is considered invalid.
+
+			If the message is invalid, the server answers the client with:
+			
+			*	460 INVALID DATE if the date is invalid
+			*	461 INVALID SIGNATURE if the signature is invalid
+
+			If the message is valid, the server:
+			
+			*	saves it to the database adding a date and unique id
+			*	answers 200 OK to the client.
+
+--------------------------------------------------------------------------------
+
+	DOWNLOADING MESSAGES
+
+		NOTE: before being able to receive messages, a client must register to
+		the server. A detailed explanation of the registering protocol is given
+		elsewhere. Here we assume the client is already registered.
+
+		First of all the client needs to authenticate itself to the server.
+		While not a 

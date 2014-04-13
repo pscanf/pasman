@@ -1,0 +1,19 @@
+API
+
+POST
+
+Content-type: application/json
+All requests must have an authorization header.
+
+/archive/create
+	id: string
+	passphrase: string
+
+/bucket/add
+	name: string
+	[info: object]
+
+/bucket/del
+	name: string
+
+/bucket/list
